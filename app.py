@@ -38,4 +38,4 @@ def mitigation_tool():
 if __name__ == '__main__':
     # This block is for local development. Render will use the Gunicorn command.
     port = int(os.environ.get('PORT', 5004))
-    app.run(host='0.0.0.0', port=5005, debug=True)
+    app.run(host='0.0.0.0', port=10000, debug=True)
