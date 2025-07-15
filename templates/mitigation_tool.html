@@ -133,11 +133,9 @@
         </div>
     </footer>
 
-
         <!-- ... (Keep all HTML content from head to footer as it is) ... -->
 
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-    <!-- We no longer need html2canvas, only jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
         AOS.init({
@@ -180,19 +178,47 @@
             }
         });
 
-        // --- NEW: ADVANCED PDF DOWNLOAD LOGIC ---
+        // --- NEW: ADVANCED PDF DOWNLOAD LOGIC WITH WATERMARK ---
+
+        // Pre-load the logo to convert it to a Base64 data URL
+        let logoDataURL = '';
+        function toDataURL(url, callback) {
+            const xhr = new XMLHttpRequest();
+            xhr.onload = function() {
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    callback(reader.result);
+                }
+                reader.readAsDataURL(xhr.response);
+            };
+            xhr.open('GET', url);
+            xhr.responseType = 'blob';
+            xhr.send();
+        }
+
+        // Call this function once when the script loads
+        // **IMPORTANT**: Make sure the path to your logo is correct!
+        toDataURL("{{ url_for('static', filename='images/TSN logo.png') }}", function(dataUrl) {
+            logoDataURL = dataUrl;
+        });
+
+
         const downloadButton = document.getElementById('downloadPdfBtn');
         if (downloadButton) {
             downloadButton.addEventListener('click', generateProfessionalPdf);
         }
 
         function generateProfessionalPdf() {
+            if (!logoDataURL) {
+                alert("Logo is still loading, please wait a moment and try again.");
+                return;
+            }
+
             const downloadBtn = this;
             const originalText = downloadBtn.innerHTML;
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
             
-            // Use a timeout to allow the UI to update before the heavy PDF work starts
             setTimeout(() => {
                 try {
                     const { jsPDF } = window.jspdf;
@@ -204,7 +230,7 @@
                     const FONT_SIZE_NORMAL = 11;
                     const FONT_SIZE_H1 = 16;
                     const LINE_HEIGHT = 1.5;
-                    const MARGIN_TOP = 20;
+                    const MARGIN_TOP = 25; // Increased top margin for header
                     const MARGIN_BOTTOM = 20;
                     const MARGIN_LEFT = 20;
                     const MARGIN_RIGHT = 20;
@@ -215,22 +241,35 @@
                     let currentY = MARGIN_TOP;
                     let pageCount = 1;
 
-                    // --- Helper function for headers and footers ---
-                    const addHeaderAndFooter = () => {
-                        // Header
+                    // --- Helper function for headers, footers, and watermark ---
+                    const addPageElements = () => {
+                        // --- Watermark ---
+                        // Place the logo in the center of the page
+                        const logoWidth = 80;
+                        const logoHeight = 80;
+                        const logoX = (PAGE_WIDTH - logoWidth) / 2;
+                        const logoY = (PAGE_HEIGHT - logoHeight) / 2;
+                        
+                        // Set opacity for watermark effect
+                        pdf.setGState(new pdf.GState({opacity: 0.1}));
+                        pdf.addImage(logoDataURL, 'PNG', logoX, logoY, logoWidth, logoHeight);
+                        // Reset opacity to normal for all other elements
+                        pdf.setGState(new pdf.GState({opacity: 1}));
+
+                        // --- Header ---
                         pdf.setFontSize(8);
                         pdf.setFont('helvetica', 'italic');
                         pdf.setTextColor(100);
-                        pdf.text('Mitigate.AI Report | The Nish Solutions', MARGIN_LEFT, 10);
-                        pdf.line(MARGIN_LEFT, 12, PAGE_WIDTH - MARGIN_RIGHT, 12); // Underline
+                        pdf.text('AI Mitigation Report | The Nish Solutions', MARGIN_LEFT, 15);
+                        pdf.line(MARGIN_LEFT, 17, PAGE_WIDTH - MARGIN_RIGHT, 17); // Underline
 
-                        // Footer
+                        // --- Footer ---
                         const pageNumText = `Page ${pageCount}`;
                         pdf.text(pageNumText, PAGE_WIDTH / 2, PAGE_HEIGHT - 10, { align: 'center' });
                     };
                     
-                    // Add header/footer to the first page
-                    addHeaderAndFooter();
+                    // Add elements to the first page
+                    addPageElements();
 
                     // --- Add Report Title ---
                     pdf.setFont('helvetica', 'bold');
@@ -245,7 +284,7 @@
                             pageCount++;
                             pdf.addPage();
                             currentY = MARGIN_TOP;
-                            addHeaderAndFooter();
+                            addPageElements(); // Add elements to the new page
                         }
 
                         let textToRender = '';
@@ -257,11 +296,11 @@
                         } else if (node.nodeName === 'STRONG') {
                             textToRender = node.textContent.trim();
                             pdf.setFont('helvetica', 'bold');
-                            pdf.setFontSize(FONT_SIZE_NORMAL + 1); // Make bold text slightly larger
+                            pdf.setFontSize(FONT_SIZE_NORMAL + 1);
                             pdf.setTextColor(26, 44, 66); // --dark-blue
                         } else if (node.nodeName === 'BR') {
-                            currentY += FONT_SIZE_NORMAL * (LINE_HEIGHT - 1.2); // Smaller space for BR
-                            return; // No text to render
+                            currentY += FONT_SIZE_NORMAL * (LINE_HEIGHT - 1.2);
+                            return;
                         }
 
                         if (textToRender) {
@@ -271,21 +310,19 @@
                         }
                     };
 
-                    // Recursively process all child nodes
                     reportContentElement.childNodes.forEach(node => processNode(node));
 
                     // --- Save the PDF ---
-                    pdf.save('AI_Mitigation_Report.pdf');
+                    pdf.save('AI_Mitigation_Report_TSN.pdf');
 
                 } catch (err) {
                     console.error("Error generating PDF:", err);
                     alert("Sorry, an error occurred while generating the PDF. Please try again.");
                 } finally {
-                    // Restore button state
                     downloadBtn.disabled = false;
                     downloadBtn.innerHTML = originalText;
                 }
-            }, 50); // 50ms timeout
+            }, 50);
         }
     </script>
 </body>
